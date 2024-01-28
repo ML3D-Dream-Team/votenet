@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class VotingModule(nn.Module):
-    def __init__(self, vote_factor, seed_feature_dim):
+    def __init__(self, vote_factor, seed_feature_dim, dropout_rate=0.5):
         """ Votes generation from seed point features.
 
         Args:
