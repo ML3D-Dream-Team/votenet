@@ -303,7 +303,7 @@ def evaluate_one_epoch():
     return mean_loss
 
 
-def train(start_epoch):
+def train(start_epoch, dropout_rate):
     global EPOCH_CNT 
     min_loss = 1e10
     loss = 0
@@ -323,6 +323,7 @@ def train(start_epoch):
         save_dict = {'epoch': epoch+1, # after training one epoch, the start_epoch should be epoch+1
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss,
+                    'dropout_rate': dropout_rate
                     }
         try: # with nn.DataParallel() the net is added as a submodule of DataParallel
             save_dict['model_state_dict'] = net.module.state_dict()
@@ -331,4 +332,15 @@ def train(start_epoch):
         torch.save(save_dict, os.path.join(LOG_DIR, 'checkpoint.tar'))
 
 if __name__=='__main__':
-    train(start_epoch)
+    dropout_rates = [0.2, 0.3, 0.4, 0.5]
+    for dropout_rate in dropout_rates:
+        net = Detector(num_class=DATASET_CONFIG.num_class,
+                num_heading_bin=DATASET_CONFIG.num_heading_bin,
+                num_size_cluster=DATASET_CONFIG.num_size_cluster,
+                mean_size_arr=DATASET_CONFIG.mean_size_arr,
+                num_proposal=FLAGS.num_target,
+                input_feature_dim=num_input_channel,
+                vote_factor=FLAGS.vote_factor,
+                sampling=FLAGS.cluster_sampling,
+                dropout_rate=dropout_rate)
+        train(start_epoch, dropout_rate=dropout_rate)
