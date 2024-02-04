@@ -342,4 +342,5 @@ if __name__=='__main__':
                 vote_factor=FLAGS.vote_factor,
                 sampling=FLAGS.cluster_sampling,
                 dropout_rate=dropout_rate)
+        net.to(device)
         train(start_epoch, dropout_rate=dropout_rate)

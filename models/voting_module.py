@@ -35,7 +35,7 @@ class VotingModule(nn.Module):
         self.bn1 = torch.nn.BatchNorm1d(self.in_dim)
         self.bn2 = torch.nn.BatchNorm1d(self.in_dim)
 
-        self.dropout = nn.Dropout1d(0.5)
+        self.dropout = nn.Dropout1d(dropout_rate)
         
     def forward(self, seed_xyz, seed_features):
         """ Forward pass.
