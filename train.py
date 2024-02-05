@@ -37,6 +37,7 @@ sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 from pytorch_utils import BNMomentumScheduler
 from tf_visualizer import Visualizer as TfVisualizer
+# from kitti_ap_helper import APCalculator, parse_predictions, parse_groundtruths
 from ap_helper import APCalculator, parse_predictions, parse_groundtruths
 
 parser = argparse.ArgumentParser()
@@ -52,6 +53,7 @@ parser.add_argument('--cluster_sampling', default='vote_fps', help='Sampling str
 parser.add_argument('--ap_iou_thresh', type=float, default=0.25, help='AP IoU threshold [default: 0.25]')
 parser.add_argument('--max_epoch', type=int, default=180, help='Epoch to run [default: 180]')
 parser.add_argument('--batch_size', type=int, default=8, help='Batch Size during training [default: 8]')
+# parser.add_argument('--batch_size', type=int, default=32, help='Batch Size during training [default: 8]')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='Initial learning rate [default: 0.001]')
 parser.add_argument('--weight_decay', type=float, default=0, help='Optimization L2 weight decay [default: 0]')
 parser.add_argument('--bn_decay_step', type=int, default=20, help='Period of BN decay (in epochs) [default: 20]')
@@ -59,10 +61,12 @@ parser.add_argument('--bn_decay_rate', type=float, default=0.5, help='Decay rate
 parser.add_argument('--lr_decay_steps', default='80,120,160', help='When to decay the learning rate (in epochs) [default: 80,120,160]')
 parser.add_argument('--lr_decay_rates', default='0.1,0.1,0.1', help='Decay rates for lr decay [default: 0.1,0.1,0.1]')
 parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
+# parser.add_argument('--no_height', default=True, action='store_true', help='Do NOT use height signal in input.')
 parser.add_argument('--use_color', action='store_true', help='Use RGB color in input.')
 parser.add_argument('--use_sunrgbd_v2', action='store_true', help='Use V2 box labels for SUN RGB-D dataset')
 parser.add_argument('--overwrite', action='store_true', help='Overwrite existing log and dump folders.')
 parser.add_argument('--dump_results', action='store_true', help='Dump results.')
+parser.add_argument('--visualize', default=False, action='store_true', help='visualize kitti data or not')
 FLAGS = parser.parse_args()
 
 # ------------------------------------------------------------------------- GLOBAL CONFIG BEG
@@ -134,6 +138,13 @@ elif FLAGS.dataset == 'scannet':
     TEST_DATASET = ScannetDetectionDataset('val', num_points=NUM_POINT,
         augment=False,
         use_color=FLAGS.use_color, use_height=(not FLAGS.no_height))
+elif FLAGS.dataset == 'kitti':
+    from kitti.kitti_vote_dataset import KittiVoteDataset
+    from kitti.model_util_kitti import KittiDatasetConfig
+    DATASET_CONFIG = KittiDatasetConfig()
+    gt_database_dir = './kitti/gt_database/train_gt_database_3level_Car.pkl'
+    TRAIN_DATASET = KittiVoteDataset('../data', npoints=NUM_POINT, gt_database_dir=gt_database_dir)
+    TEST_DATASET = KittiVoteDataset('../data', npoints=NUM_POINT, split='val', mode='EVAL')
 else:
     print('Unknown dataset %s. Exiting...'%(FLAGS.dataset))
     exit(-1)
@@ -147,7 +158,7 @@ print(len(TRAIN_DATALOADER), len(TEST_DATALOADER))
 # Init the model and optimzier
 MODEL = importlib.import_module(FLAGS.model) # import network module
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_input_channel = int(FLAGS.use_color)*3 + int(not FLAGS.no_height)*1
+num_input_channel = int(FLAGS.use_color)*3 + int(not FLAGS.no_height)*1  # TODO: no_height=True
 
 if FLAGS.model == 'boxnet':
     Detector = MODEL.BoxNet
@@ -286,7 +297,25 @@ def evaluate_one_epoch():
 
         # Dump evaluation results for visualization
         if FLAGS.dump_results and batch_idx == 0 and EPOCH_CNT %10 == 0:
-            MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG) 
+            MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG)
+        
+        # Visualize KITTI data
+        if FLAGS.visualize:
+            from kitti.kitti_utils import corer3d_to_box3d, point_viz, box_viz
+            boxes_corners = batch_gt_map_cls[0]
+            boxes = []
+            for box_corners in boxes_corners:
+                boxes.append(corer3d_to_box3d(box_corners[1]))
+            boxes = np.array(boxes)
+            pts = end_points['point_clouds'][0].cpu().numpy()
+            point_viz(pts, name='point_cloud', dump_dir=DUMP_DIR)
+            box_viz(boxes, name='gt_box', dump_dir=DUMP_DIR)
+            boxes_corners = batch_pred_map_cls[0]
+            boxes = []
+            for box_corners in boxes_corners:
+                boxes.append(corer3d_to_box3d(box_corners[1]))
+            boxes = np.array(boxes)
+            box_viz(boxes, name='pred_box', dump_dir=DUMP_DIR)
 
     # Log statistics
     TEST_VISUALIZER.log_scalars({key:stat_dict[key]/float(batch_idx+1) for key in stat_dict},
@@ -318,7 +347,9 @@ def train(start_epoch):
         np.random.seed()
         train_one_epoch()
         if EPOCH_CNT == 0 or EPOCH_CNT % 10 == 9: # Eval every 10 epochs
+            log_string('**** EVAL EPOCH %03d START****' % (epoch))
             loss = evaluate_one_epoch()
+            log_string('**** EVAL EPOCH %03d END****' % (epoch))
         # Save checkpoint
         save_dict = {'epoch': epoch+1, # after training one epoch, the start_epoch should be epoch+1
                     'optimizer_state_dict': optimizer.state_dict(),
@@ -331,4 +362,13 @@ def train(start_epoch):
         torch.save(save_dict, os.path.join(LOG_DIR, 'checkpoint.tar'))
 
 if __name__=='__main__':
+    from datetime import datetime
+
+    log_string('train start')
+    dt = datetime.now()
+    start_time = 'strat time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
     train(start_epoch)
+    dt = datetime.now()
+    end_time = 'end time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
+    print(start_time)
+    print(end_time)
