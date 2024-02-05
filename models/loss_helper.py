@@ -148,6 +148,11 @@ def compute_box_and_sem_cls_loss(end_points, config):
     heading_class_loss = criterion_heading_class(end_points['heading_scores'].transpose(2,1), heading_class_label) # (B,K)
     heading_class_loss = torch.sum(heading_class_loss * objectness_label)/(torch.sum(objectness_label)+1e-6)
 
+    heading_pred_val = torch.argmax(end_points['heading_scores'], 2)  # B,K
+    heading_acc = torch.sum((heading_pred_val == heading_class_label.long()).float() * objectness_label) / (
+                torch.sum(objectness_label) + 1e-6)
+    end_points['heading_acc'] = heading_acc
+
     heading_residual_label = torch.gather(end_points['heading_residual_label'], 1, object_assignment) # select (B,K) from (B,K2)
     heading_residual_normalized_label = heading_residual_label / (np.pi/num_heading_bin)
 
@@ -162,6 +167,11 @@ def compute_box_and_sem_cls_loss(end_points, config):
     criterion_size_class = nn.CrossEntropyLoss(reduction='none')
     size_class_loss = criterion_size_class(end_points['size_scores'].transpose(2,1), size_class_label) # (B,K)
     size_class_loss = torch.sum(size_class_loss * objectness_label)/(torch.sum(objectness_label)+1e-6)
+
+    size_pred_val = torch.argmax(end_points['size_scores'], 2)  # B,K
+    size_acc = torch.sum((size_pred_val == size_class_label.long()).float() * objectness_label) / (
+            torch.sum(objectness_label) + 1e-6)
+    end_points['size_acc'] = size_acc
 
     size_residual_label = torch.gather(end_points['size_residual_label'], 1, object_assignment.unsqueeze(-1).repeat(1,1,3)) # select (B,K,3) from (B,K2,3)
     size_label_one_hot = torch.cuda.FloatTensor(batch_size, size_class_label.shape[1], num_size_cluster).zero_()
@@ -181,7 +191,12 @@ def compute_box_and_sem_cls_loss(end_points, config):
     sem_cls_loss = criterion_sem_cls(end_points['sem_cls_scores'].transpose(2,1), sem_cls_label) # (B,K)
     sem_cls_loss = torch.sum(sem_cls_loss * objectness_label)/(torch.sum(objectness_label)+1e-6)
 
-    return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss
+    sem_pred_val = torch.argmax(end_points['sem_cls_scores'], 2)  # B,K
+    sem_acc = torch.sum((sem_pred_val == sem_cls_label.long()).float() * objectness_label) / (
+            torch.sum(objectness_label) + 1e-6)
+    end_points['sem_acc'] = sem_acc
+
+    return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss, end_points
 
 def get_loss(end_points, config):
     """ Loss functions
@@ -225,7 +240,7 @@ def get_loss(end_points, config):
         torch.sum(objectness_mask.float())/float(total_num_proposal) - end_points['pos_ratio']
 
     # Box loss and sem cls loss
-    center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = \
+    center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss, end_points = \
         compute_box_and_sem_cls_loss(end_points, config)
     end_points['center_loss'] = center_loss
     end_points['heading_cls_loss'] = heading_cls_loss
