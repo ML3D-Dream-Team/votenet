@@ -248,6 +248,8 @@ def get_3d_box_batch(box_size, heading_angle, center):
 
 if __name__=='__main__':
 
+    get_3d_box(1, np.pi/2, 1)
+
     # Function for polygon ploting
     import matplotlib
     from matplotlib.patches import Polygon
