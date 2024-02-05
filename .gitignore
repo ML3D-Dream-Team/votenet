@@ -1,0 +1,3 @@
+log_kitti/*
+*__pycache__*
+*.pyc
