@@ -63,7 +63,7 @@ class ProposalModule(nn.Module):
                 nsample=16,
                 mlp=[self.seed_feat_dim, 128, 128, 128],
                 use_xyz=True,
-                normalize_xyz=True
+                normalize_xyz=True,
             )
     
         # Object proposal/detection

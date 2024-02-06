@@ -23,7 +23,7 @@ det_label_folder = '../sunrgbd_trainval/label_v1/';
 mkdir(det_label_folder);
 %% Read
 for imageId = 1:10335
-    imageId
+    imageId;
 try
 data = SUNRGBDMeta(imageId);
 data.depthpath(1:16) = '';

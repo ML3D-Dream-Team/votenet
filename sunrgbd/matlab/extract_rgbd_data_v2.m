@@ -14,7 +14,7 @@
 %
 clear; close all; clc;
 addpath(genpath('.'))
-addpath('../OFFICIAL_SUNRGBD/SUNRGBDtoolbox/readData')
+addpath('../OFFICIAL_SUNRGBD/SUNRGBDtoolbox/readData');
 %% V1 2D&3D BB and Seg masks
 % load('./Metadata/SUNRGBDMeta.mat')
 % load('./Metadata/SUNRGBD2Dseg.mat')
@@ -35,7 +35,7 @@ mkdir(det_label_folder);
 mkdir(seg_label_folder);
 %% Read
 parfor imageId = 1:10335
-    imageId
+    imageId;
 try
 data = SUNRGBDMeta(imageId);
 data.depthpath(1:16) = '';

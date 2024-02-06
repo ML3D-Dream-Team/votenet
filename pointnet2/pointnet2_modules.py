@@ -187,12 +187,22 @@ class PointnetSAModuleVotes(nn.Module):
         self.nsample = nsample
         self.pooling = pooling
         self.mlp_module = None
+        self.mlp_spec = mlp
         self.use_xyz = use_xyz
         self.sigma = sigma
         if self.sigma is None:
             self.sigma = self.radius/2
         self.normalize_xyz = normalize_xyz
         self.ret_unique_cnt = ret_unique_cnt
+        
+        
+        self.attention_layer = AttentionSAModule(
+                input_channels=32768,
+                latent=3,
+                dim_acc= 2,
+                key_props = [32768,16]
+            )
+
 
         if npoint is not None:
             self.grouper = pointnet2_utils.QueryAndGroup(radius, nsample,
@@ -205,6 +215,7 @@ class PointnetSAModuleVotes(nn.Module):
         if use_xyz and len(mlp_spec)>0:
             mlp_spec[0] += 3
         self.mlp_module = pt_utils.SharedMLP(mlp_spec, bn=bn)
+        print(f"mlp spec{mlp_spec}")
 
 
     def forward(self, xyz: torch.Tensor,
@@ -229,7 +240,7 @@ class PointnetSAModuleVotes(nn.Module):
         inds: torch.Tensor
             (B, npoint) tensor of the inds
         """
-
+        #print(f"################# of points {xyz.shape}")
         xyz_flipped = xyz.transpose(1, 2).contiguous()
         if inds is None:
             inds = pointnet2_utils.furthest_point_sample(xyz, self.npoint)
@@ -247,10 +258,15 @@ class PointnetSAModuleVotes(nn.Module):
             grouped_features, grouped_xyz, unique_cnt = self.grouper(
                 xyz, new_xyz, features
             )  # (B, C, npoint, nsample), (B,3,npoint,nsample), (B,npoint)
-
+        #print(f"################# grouped of points {grouped_xyz.shape}")
         new_features = self.mlp_module(
             grouped_features
         )  # (B, mlp[-1], npoint, nsample)
+        #print(f"inout shape aggrigate{new_features.shape}")
+        
+        if(self.mlp_spec[1] == 128 and self.mlp_spec[2] ==128 and self.mlp_spec[3] == 128 and False):
+            #print(f"grouped features shape {grouped_features.shape}; new feature {new_features.shape} ; mlp spec {self.mlp_spec}")
+            self.pooling = "attention"
         if self.pooling == 'max':
             new_features = F.max_pool2d(
                 new_features, kernel_size=[1, new_features.size(3)]
@@ -264,6 +280,11 @@ class PointnetSAModuleVotes(nn.Module):
             # Ref: https://en.wikipedia.org/wiki/Radial_basis_function_kernel
             rbf = torch.exp(-1 * grouped_xyz.pow(2).sum(1,keepdim=False) / (self.sigma**2) / 2) # (B, npoint, nsample)
             new_features = torch.sum(new_features * rbf.unsqueeze(1), -1, keepdim=True) / float(self.nsample) # (B, mlp[-1], npoint, 1)
+
+        elif self.pooling == 'attention':
+            
+            new_features = self.attention_layer(new_features)
+        #print(f"out shape {new_features.shape}")
         new_features = new_features.squeeze(-1)  # (B, mlp[-1], npoint)
 
         if not self.ret_unique_cnt:
@@ -494,6 +515,33 @@ class PointnetLFPModuleMSG(nn.Module):
             new_features_list.append(new_features)
 
         return torch.cat(new_features_list, dim=1).squeeze(-1)
+    
+
+
+class AttentionSAModule(nn.Module):
+    def __init__(self, input_channels,latent =3,dim_acc =2,key_props = [32768,16]):
+        super(AttentionSAModule, self).__init__()
+        self.attention_weights = nn.Sequential(            
+            nn.Linear(input_channels, latent),
+            nn.Tanh(),
+            nn.Linear(latent, 1)
+        )
+        self.key_length = key_props
+
+    def forward(self, x):
+        if(x.shape[1]*x.shape[2] == self.key_length[0]):
+            final_dim = x.numel()//(self.key_length[0]*self.key_length[1])
+            restructured = x.view(final_dim, 16, 128 * 256)
+            attention_weights = self.attention_weights(restructured).squeeze(-1).transpose(0,1)
+            attention_weights = F.max_pool1d(attention_weights, kernel_size=final_dim, stride=final_dim).squeeze(-1)
+            ans = torch.matmul(x, attention_weights)
+            return ans
+        else:
+            print(f"the shape of input of attention {x.shape}")
+            new_features = F.max_pool2d(
+                new_features, kernel_size=[1, new_features.size(3)]
+            )
+            return new_features
 
 
 if __name__ == "__main__":
