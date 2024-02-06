@@ -332,7 +332,7 @@ def evaluate_one_epoch():
     return mean_loss
 
 
-def train(start_epoch):
+def train(start_epoch, dropout_rate=0):
     global EPOCH_CNT 
     min_loss = 1e10
     loss = 0
@@ -353,22 +353,32 @@ def train(start_epoch):
         # Save checkpoint
         save_dict = {'epoch': epoch+1, # after training one epoch, the start_epoch should be epoch+1
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss,
+                    'loss': loss
                     }
         try: # with nn.DataParallel() the net is added as a submodule of DataParallel
             save_dict['model_state_dict'] = net.module.state_dict()
         except:
             save_dict['model_state_dict'] = net.state_dict()
-        torch.save(save_dict, os.path.join(LOG_DIR, 'checkpoint.tar'))
+        torch.save(save_dict, os.path.join(LOG_DIR, f'checkpoint_dr_{dropout_rate}.tar'))
 
 if __name__=='__main__':
-    from datetime import datetime
-
-    log_string('train start')
-    dt = datetime.now()
-    start_time = 'strat time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
-    train(start_epoch)
-    dt = datetime.now()
-    end_time = 'end time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
-    print(start_time)
-    print(end_time)
+    dropout_rates = [0.2, 0.3, 0.4, 0.5]
+    for dropout_rate in dropout_rates:
+        net = Detector(num_class=DATASET_CONFIG.num_class,
+                num_heading_bin=DATASET_CONFIG.num_heading_bin,
+                num_size_cluster=DATASET_CONFIG.num_size_cluster,
+                mean_size_arr=DATASET_CONFIG.mean_size_arr,
+                num_proposal=FLAGS.num_target,
+                input_feature_dim=num_input_channel,
+                vote_factor=FLAGS.vote_factor,
+                sampling=FLAGS.cluster_sampling,
+                dropout_rate=dropout_rate)
+        net.to(device)
+        from datetime import datetime
+        log_string('train start')
+        dt = datetime.now()
+        start_time = 'strat time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
+        train(start_epoch, dropout_rate=dropout_rate)
+        dt = datetime.now()
+        end_time = 'end time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
+        print(start_time)
