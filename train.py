@@ -304,6 +304,9 @@ def evaluate_one_epoch():
 
 
 def train(start_epoch):
+    torch.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
+
     global EPOCH_CNT 
     min_loss = 1e10
     loss = 0
