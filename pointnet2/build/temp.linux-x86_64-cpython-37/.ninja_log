@@ -1,0 +1,10 @@
+# ninja log v5
+4	9130	1707088459530882080	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/sampling_gpu.o	591ca4bef5169f12
+4	10023	1707088460422884111	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/interpolate_gpu.o	22a436eda40c6a36
+3	10790	1707088461190885859	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/group_points_gpu.o	fc0e6185f0f1b1f
+1	11376	1707088461778887198	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/ball_query_gpu.o	508f151441df807e
+0	12914	1707088463314890696	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/ball_query.o	787a64aad4883f46
+2	14393	1707088464790894057	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/group_points.o	b886229056bbd354
+3	15414	1707088465810896380	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/interpolate.o	290b6e5e72dd766
+1	15929	1707088466326897557	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/sampling.o	5dd2abae1bc11e4f
+1	18073	1707088468462902421	/home/kalzansundaram/research/votenet-kitti/pointnet2/build/temp.linux-x86_64-cpython-37/_ext_src/src/bindings.o	5199c3665474768d

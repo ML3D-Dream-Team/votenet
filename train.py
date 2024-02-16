@@ -42,7 +42,7 @@ from ap_helper import APCalculator, parse_predictions, parse_groundtruths
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='votenet', help='Model file name [default: votenet]')
-parser.add_argument('--dataset', default='sunrgbd', help='Dataset name. sunrgbd or scannet. [default: sunrgbd]')
+parser.add_argument('--dataset', default='kitti', help='Dataset name. sunrgbd or scannet. [default: sunrgbd]')
 parser.add_argument('--checkpoint_path', default=None, help='Model checkpoint path [default: None]')
 parser.add_argument('--log_dir', default='log', help='Dump dir to save model checkpoint [default: log]')
 parser.add_argument('--dump_dir', default=None, help='Dump dir to save sample outputs [default: None]')
@@ -51,22 +51,21 @@ parser.add_argument('--num_target', type=int, default=256, help='Proposal number
 parser.add_argument('--vote_factor', type=int, default=1, help='Vote factor [default: 1]')
 parser.add_argument('--cluster_sampling', default='vote_fps', help='Sampling strategy for vote clusters: vote_fps, seed_fps, random [default: vote_fps]')
 parser.add_argument('--ap_iou_thresh', type=float, default=0.25, help='AP IoU threshold [default: 0.25]')
-parser.add_argument('--max_epoch', type=int, default=180, help='Epoch to run [default: 180]')
-parser.add_argument('--batch_size', type=int, default=8, help='Batch Size during training [default: 8]')
-# parser.add_argument('--batch_size', type=int, default=32, help='Batch Size during training [default: 8]')
+parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 180]')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch Size during training [default: 8]')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='Initial learning rate [default: 0.001]')
 parser.add_argument('--weight_decay', type=float, default=0, help='Optimization L2 weight decay [default: 0]')
 parser.add_argument('--bn_decay_step', type=int, default=20, help='Period of BN decay (in epochs) [default: 20]')
 parser.add_argument('--bn_decay_rate', type=float, default=0.5, help='Decay rate for BN decay [default: 0.5]')
 parser.add_argument('--lr_decay_steps', default='80,120,160', help='When to decay the learning rate (in epochs) [default: 80,120,160]')
 parser.add_argument('--lr_decay_rates', default='0.1,0.1,0.1', help='Decay rates for lr decay [default: 0.1,0.1,0.1]')
-parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
-# parser.add_argument('--no_height', default=True, action='store_true', help='Do NOT use height signal in input.')
+parser.add_argument('--no_height', default=True, action='store_true', help='Do NOT use height signal in input.')
 parser.add_argument('--use_color', action='store_true', help='Use RGB color in input.')
 parser.add_argument('--use_sunrgbd_v2', action='store_true', help='Use V2 box labels for SUN RGB-D dataset')
 parser.add_argument('--overwrite', action='store_true', help='Overwrite existing log and dump folders.')
 parser.add_argument('--dump_results', action='store_true', help='Dump results.')
 parser.add_argument('--visualize', default=False, action='store_true', help='visualize kitti data or not')
+parser.add_argument('--dropout_rate', type=float, default=0.0, help='select dropout rate')
 FLAGS = parser.parse_args()
 
 # ------------------------------------------------------------------------- GLOBAL CONFIG BEG
@@ -82,7 +81,7 @@ assert(len(LR_DECAY_STEPS)==len(LR_DECAY_RATES))
 LOG_DIR = FLAGS.log_dir
 DEFAULT_DUMP_DIR = os.path.join(BASE_DIR, os.path.basename(LOG_DIR))
 DUMP_DIR = FLAGS.dump_dir if FLAGS.dump_dir is not None else DEFAULT_DUMP_DIR
-DEFAULT_CHECKPOINT_PATH = os.path.join(LOG_DIR, 'checkpoint.tar')
+DEFAULT_CHECKPOINT_PATH = os.path.join(LOG_DIR, f'checkpoint_dr_{FLAGS.dropout_rate}.tar')
 CHECKPOINT_PATH = FLAGS.checkpoint_path if FLAGS.checkpoint_path is not None \
     else DEFAULT_CHECKPOINT_PATH
 FLAGS.DUMP_DIR = DUMP_DIR
@@ -165,6 +164,8 @@ if FLAGS.model == 'boxnet':
 else:
     Detector = MODEL.VoteNet
 
+dropout_rate = FLAGS.dropout_rate
+
 net = Detector(num_class=DATASET_CONFIG.num_class,
                num_heading_bin=DATASET_CONFIG.num_heading_bin,
                num_size_cluster=DATASET_CONFIG.num_size_cluster,
@@ -172,12 +173,13 @@ net = Detector(num_class=DATASET_CONFIG.num_class,
                num_proposal=FLAGS.num_target,
                input_feature_dim=num_input_channel,
                vote_factor=FLAGS.vote_factor,
-               sampling=FLAGS.cluster_sampling)
+               sampling=FLAGS.cluster_sampling,
+               dropout_rate=dropout_rate)
 
 if torch.cuda.device_count() > 1:
-  log_string("Let's use %d GPUs!" % (torch.cuda.device_count()))
-  # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-  net = nn.DataParallel(net)
+    log_string("Let's use %d GPUs!" % (torch.cuda.device_count()))
+    # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+    net = nn.DataParallel(net)
 net.to(device)
 criterion = MODEL.get_loss
 
@@ -292,7 +294,7 @@ def evaluate_one_epoch():
                 stat_dict[key] += end_points[key].item()
 
         batch_pred_map_cls = parse_predictions(end_points, CONFIG_DICT) 
-        batch_gt_map_cls = parse_groundtruths(end_points, CONFIG_DICT) 
+        batch_gt_map_cls = parse_groundtruths(end_points, CONFIG_DICT)
         ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
 
         # Dump evaluation results for visualization
@@ -344,6 +346,11 @@ def train(start_epoch, dropout_rate=0):
         log_string(str(datetime.now()))
         # Reset numpy seed.
         # REF: https://github.com/pytorch/pytorch/issues/5059
+
+        # log_string('**** EVAL EPOCH %03d START****' % (epoch))
+        # loss = evaluate_one_epoch()
+        # log_string('**** EVAL EPOCH %03d END****' % (epoch))
+
         np.random.seed()
         train_one_epoch()
         if EPOCH_CNT == 0 or EPOCH_CNT % 10 == 9: # Eval every 10 epochs
@@ -359,26 +366,17 @@ def train(start_epoch, dropout_rate=0):
             save_dict['model_state_dict'] = net.module.state_dict()
         except:
             save_dict['model_state_dict'] = net.state_dict()
+        # torch.save(save_dict, os.path.join(LOG_DIR, 'checkpoint.tar'))
         torch.save(save_dict, os.path.join(LOG_DIR, f'checkpoint_dr_{dropout_rate}.tar'))
 
 if __name__=='__main__':
-    dropout_rates = [0.2, 0.3, 0.4, 0.5]
-    for dropout_rate in dropout_rates:
-        net = Detector(num_class=DATASET_CONFIG.num_class,
-                num_heading_bin=DATASET_CONFIG.num_heading_bin,
-                num_size_cluster=DATASET_CONFIG.num_size_cluster,
-                mean_size_arr=DATASET_CONFIG.mean_size_arr,
-                num_proposal=FLAGS.num_target,
-                input_feature_dim=num_input_channel,
-                vote_factor=FLAGS.vote_factor,
-                sampling=FLAGS.cluster_sampling,
-                dropout_rate=dropout_rate)
-        net.to(device)
-        from datetime import datetime
-        log_string('train start')
-        dt = datetime.now()
-        start_time = 'strat time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
-        train(start_epoch, dropout_rate=dropout_rate)
-        dt = datetime.now()
-        end_time = 'end time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
-        print(start_time)
+    from datetime import datetime
+
+    log_string('train start')
+    dt = datetime.now()
+    start_time = 'strat time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
+    train(start_epoch, dropout_rate)
+    dt = datetime.now()
+    end_time = 'end time：(%Y-%m-%d %H:%M:%S): ', dt.strftime('%Y-%m-%d %H:%M:%S')
+    print(start_time)
+    print(end_time)

@@ -16,6 +16,12 @@ import time
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='sunrgbd', help='Dataset: sunrgbd or scannet [default: sunrgbd]')
 parser.add_argument('--num_point', type=int, default=20000, help='Point Number [default: 20000]')
+parser.add_argument('--checkpoint_path', type=str, default='./log_kitti/checkpoint.tar',  )
+parser.add_argument('--use_color', action='store_true', help='Use RGB color in input.')
+parser.add_argument('--no_height', default=True, action='store_true', help='Do NOT use height signal in input.')
+parser.add_argument('--num_target', type=int, default=256, help='Point Number [default: 256]')
+parser.add_argument('--vote_factor', type=int, default=1, help='Number of votes generated from each seed [default: 1]')
+parser.add_argument('--cluster_sampling', default='vote_fps', help='Sampling strategy for vote clusters: vote_fps, seed_fps, random [default: vote_fps]')
 FLAGS = parser.parse_args()
 
 import torch
@@ -42,7 +48,7 @@ def preprocess_point_cloud(point_cloud):
 if __name__=='__main__':
     
     # Set file paths and dataset config
-    demo_dir = os.path.join(BASE_DIR, 'demo_files') 
+    demo_dir = os.path.join(BASE_DIR, 'kitti_demo_files') 
     if FLAGS.dataset == 'sunrgbd':
         sys.path.append(os.path.join(ROOT_DIR, 'sunrgbd'))
         from sunrgbd_detection_dataset import DC # dataset config
@@ -53,6 +59,11 @@ if __name__=='__main__':
         from scannet_detection_dataset import DC # dataset config
         checkpoint_path = os.path.join(demo_dir, 'pretrained_votenet_on_scannet.tar')
         pc_path = os.path.join(demo_dir, 'input_pc_scannet.ply')
+    elif FLAGS.dataset == 'kitti':
+        from kitti.model_util_kitti import KittiDatasetConfig
+        DC = KittiDatasetConfig()
+        checkpoint_path = FLAGS.checkpoint_path
+        pc_path = os.path.join(demo_dir, 'input_pc_kitti.ply')
     else:
         print('Unkown dataset %s. Exiting.'%(DATASET))
         exit(-1)
@@ -64,11 +75,20 @@ if __name__=='__main__':
     # Init the model and optimzier
     MODEL = importlib.import_module('votenet') # import network module
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = MODEL.VoteNet(num_proposal=256, input_feature_dim=1, vote_factor=1,
-        sampling='seed_fps', num_class=DC.num_class,
-        num_heading_bin=DC.num_heading_bin,
-        num_size_cluster=DC.num_size_cluster,
-        mean_size_arr=DC.mean_size_arr).to(device)
+    num_input_channel = int(FLAGS.use_color)*3 + int(not FLAGS.no_height)*1
+    # net = MODEL.VoteNet(num_proposal=256, input_feature_dim=num_input_channel, vote_factor=1,
+    #     sampling='seed_fps', num_class=DC.num_class,
+    #     num_heading_bin=DC.num_heading_bin,
+    #     num_size_cluster=DC.num_size_cluster,
+    #     mean_size_arr=DC.mean_size_arr).to(device)
+    net = MODEL.VoteNet(num_class=DC.num_class,
+               num_heading_bin=DC.num_heading_bin,
+               num_size_cluster=DC.num_size_cluster,
+               mean_size_arr=DC.mean_size_arr,
+               num_proposal=FLAGS.num_target,
+               input_feature_dim=num_input_channel,
+               vote_factor=FLAGS.vote_factor,
+               sampling=FLAGS.cluster_sampling)
     print('Constructed model.')
     
     # Load checkpoint

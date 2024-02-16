@@ -32,7 +32,8 @@ parser.add_argument('--batch_size', type=int, default=8, help='Batch Size during
 parser.add_argument('--vote_factor', type=int, default=1, help='Number of votes generated from each seed [default: 1]')
 parser.add_argument('--cluster_sampling', default='vote_fps', help='Sampling strategy for vote clusters: vote_fps, seed_fps, random [default: vote_fps]')
 parser.add_argument('--ap_iou_thresholds', default='0.25,0.5', help='A list of AP IoU thresholds [default: 0.25,0.5]')
-parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
+# parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
+parser.add_argument('--no_height', default=True, action='store_true', help='Do NOT use height signal in input.')
 parser.add_argument('--use_color', action='store_true', help='Use RGB color in input.')
 parser.add_argument('--use_sunrgbd_v2', action='store_true', help='Use SUN RGB-D V2 box labels.')
 parser.add_argument('--use_3d_nms', action='store_true', help='Use 3D NMS instead of 2D NMS.')
@@ -43,6 +44,9 @@ parser.add_argument('--nms_iou', type=float, default=0.25, help='NMS IoU thresho
 parser.add_argument('--conf_thresh', type=float, default=0.05, help='Filter out predictions with obj prob less than it. [default: 0.05]')
 parser.add_argument('--faster_eval', action='store_true', help='Faster evaluation by skippling empty bounding box removal.')
 parser.add_argument('--shuffle_dataset', action='store_true', help='Shuffle the dataset (random order).')
+parser.add_argument('--visualize', default=False, action='store_true', help='visualize kitti data or not')
+parser.add_argument('--dropout_rate', type=float, default=0.0, help='select dropout rate')
+parser.add_argument('--log_dir', default='log_kitti', help='Dump dir to save model checkpoint [default: log]')
 FLAGS = parser.parse_args()
 
 if FLAGS.use_cls_nms:
@@ -52,14 +56,17 @@ if FLAGS.use_cls_nms:
 BATCH_SIZE = FLAGS.batch_size
 NUM_POINT = FLAGS.num_point
 DUMP_DIR = FLAGS.dump_dir
-CHECKPOINT_PATH = FLAGS.checkpoint_path
-assert(CHECKPOINT_PATH is not None)
+# CHECKPOINT_PATH = FLAGS.checkpoint_path
+LOG_DIR = FLAGS.log_dir
+CHECKPOINT_PATH = os.path.join(LOG_DIR, f'checkpoint_dr_{FLAGS.dropout_rate}.tar')
 FLAGS.DUMP_DIR = DUMP_DIR
 AP_IOU_THRESHOLDS = [float(x) for x in FLAGS.ap_iou_thresholds.split(',')]
 
+dropout_rate = FLAGS.dropout_rate
+
 # Prepare DUMP_DIR
 if not os.path.exists(DUMP_DIR): os.mkdir(DUMP_DIR)
-DUMP_FOUT = open(os.path.join(DUMP_DIR, 'log_eval.txt'), 'w')
+DUMP_FOUT = open(os.path.join(DUMP_DIR, f'log_eval_{dropout_rate}.txt'), 'w')
 DUMP_FOUT.write(str(FLAGS)+'\n')
 def log_string(out_str):
     DUMP_FOUT.write(out_str+'\n')
@@ -86,6 +93,12 @@ elif FLAGS.dataset == 'scannet':
     TEST_DATASET = ScannetDetectionDataset('val', num_points=NUM_POINT,
         augment=False,
         use_color=FLAGS.use_color, use_height=(not FLAGS.no_height))
+elif FLAGS.dataset == 'kitti':
+    from kitti.kitti_vote_dataset import KittiVoteDataset
+    from kitti.model_util_kitti import KittiDatasetConfig
+    DATASET_CONFIG = KittiDatasetConfig()
+    gt_database_dir = './kitti/gt_database/train_gt_database_3level_Car.pkl'
+    TEST_DATASET = KittiVoteDataset('../data', npoints=NUM_POINT, split='val', mode='EVAL')
 else:
     print('Unknown dataset %s. Exiting...'%(FLAGS.dataset))
     exit(-1)
@@ -110,7 +123,8 @@ net = Detector(num_class=DATASET_CONFIG.num_class,
                num_proposal=FLAGS.num_target,
                input_feature_dim=num_input_channel,
                vote_factor=FLAGS.vote_factor,
-               sampling=FLAGS.cluster_sampling)
+               sampling=FLAGS.cluster_sampling,
+               dropout_rate=dropout_rate)
 net.to(device)
 criterion = MODEL.get_loss
 
@@ -167,6 +181,24 @@ def evaluate_one_epoch():
         # Dump evaluation results for visualization
         if batch_idx == 0:
             MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG)
+        
+        # Visualize KITTI data
+        if FLAGS.visualize:
+            from kitti.kitti_utils import corer3d_to_box3d, point_viz, box_viz
+            boxes_corners = batch_gt_map_cls[0]
+            boxes = []
+            for box_corners in boxes_corners:
+                boxes.append(corer3d_to_box3d(box_corners[1]))
+            boxes = np.array(boxes)
+            pts = end_points['point_clouds'][0].cpu().numpy()
+            point_viz(pts, name='point_cloud', dump_dir=DUMP_DIR)
+            box_viz(boxes, name='gt_box', dump_dir=DUMP_DIR)
+            boxes_corners = batch_pred_map_cls[0]
+            boxes = []
+            for box_corners in boxes_corners:
+                boxes.append(corer3d_to_box3d(box_corners[1]))
+            boxes = np.array(boxes)
+            box_viz(boxes, name='pred_box', dump_dir=DUMP_DIR)
 
     # Log statistics
     for key in sorted(stat_dict.keys()):
