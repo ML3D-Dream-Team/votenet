@@ -1,0 +1,60 @@
+Namespace(DUMP_DIR='eval_sunrgb_attention', ap_iou_thresholds='0.25,0.5', batch_size=8, checkpoint_path='log_sunrgb_attention/checkpoint.tar', cluster_sampling='seed_fps', conf_thresh=0.05, dataset='sunrgbd', dump_dir='eval_sunrgb_attention', faster_eval=False, model='votenet', nms_iou=0.25, no_height=False, num_point=20000, num_target=256, per_class_proposal=True, shuffle_dataset=False, use_3d_nms=True, use_cls_nms=True, use_color=False, use_old_type_nms=False, use_sunrgbd_v2=False, vote_factor=1)
+Loaded checkpoint log_sunrgb_attention/checkpoint.tar (epoch: 120)
+2024-02-18 16:20:53.189242
+eval mean box_loss: 0.234549
+eval mean center_loss: 0.048898
+eval mean heading_cls_loss: 0.779581
+eval mean heading_reg_loss: 0.042341
+eval mean loss: 6.589105
+eval mean neg_ratio: 0.587162
+eval mean obj_acc: 0.874690
+eval mean objectness_loss: 0.100358
+eval mean pos_ratio: 0.261536
+eval mean sem_cls_loss: 0.415708
+eval mean size_cls_loss: 0.415689
+eval mean size_reg_loss: 0.023782
+eval mean vote_loss: 0.332612
+eval bed Average Precision: 0.805143
+eval table Average Precision: 0.487076
+eval sofa Average Precision: 0.600140
+eval chair Average Precision: 0.721497
+eval toilet Average Precision: 0.852080
+eval desk Average Precision: 0.224035
+eval dresser Average Precision: 0.227603
+eval night_stand Average Precision: 0.519583
+eval bookshelf Average Precision: 0.282249
+eval bathtub Average Precision: 0.587319
+eval mAP: 0.530672
+eval bed Recall: 0.942910
+eval table Recall: 0.844581
+eval sofa Recall: 0.888889
+eval chair Recall: 0.866333
+eval toilet Recall: 0.953642
+eval desk Recall: 0.782587
+eval dresser Recall: 0.773148
+eval night_stand Recall: 0.877953
+eval bookshelf Recall: 0.648829
+eval bathtub Recall: 0.826923
+eval AR: 0.840580
+eval bed Average Precision: 0.464937
+eval table Average Precision: 0.173335
+eval sofa Average Precision: 0.417941
+eval chair Average Precision: 0.469942
+eval toilet Average Precision: 0.551909
+eval desk Average Precision: 0.039778
+eval dresser Average Precision: 0.094220
+eval night_stand Average Precision: 0.235700
+eval bookshelf Average Precision: 0.040214
+eval bathtub Average Precision: 0.284924
+eval mAP: 0.277290
+eval bed Recall: 0.622468
+eval table Recall: 0.391820
+eval sofa Recall: 0.615023
+eval chair Recall: 0.612060
+eval toilet Recall: 0.708609
+eval desk Recall: 0.267093
+eval dresser Recall: 0.384259
+eval night_stand Recall: 0.535433
+eval bookshelf Recall: 0.153846
+eval bathtub Recall: 0.480769
+eval AR: 0.477138

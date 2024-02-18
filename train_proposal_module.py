@@ -171,7 +171,7 @@ def disable_voting_backbone_training(network:VoteNet):
         param.requires_grad = False
 
 bfr_total_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
-disable_voting_backbone_training(net)
+#disable_voting_backbone_training(net)
 aft_total_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
 print(f"before the freeze we have  {bfr_total_params} after freezing we habe {aft_total_params}")
 if torch.cuda.device_count() > 1:
@@ -189,10 +189,36 @@ it = -1 # for the initialize value of `LambdaLR` and `BNMomentumScheduler`
 start_epoch = 0
 if CHECKPOINT_PATH is not None and os.path.isfile(CHECKPOINT_PATH):
     checkpoint = torch.load(CHECKPOINT_PATH)
-    net.load_state_dict(checkpoint['model_state_dict'])
+    checkpoint_state_dict = checkpoint['model_state_dict'] 
+    model_state_dict = net.state_dict()
+    matched_state_dict = {k: v for k, v in checkpoint_state_dict.items() if k in model_state_dict}
+    model_state_dict.update(matched_state_dict)
+    net.load_state_dict(matched_state_dict)
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     start_epoch = checkpoint['epoch']
     log_string("-> loaded checkpoint %s (epoch: %d)"%(CHECKPOINT_PATH, start_epoch))
+
+
+def load_partial_model(model, checkpoint_path):
+    # Load the checkpoint
+    checkpoint = torch.load(checkpoint_path)
+    
+    # Get the state dictionary of the checkpoint
+    checkpoint_state_dict = checkpoint['model_state_dict']  # Assuming model_state_dict is the key storing model parameters
+    
+    # Get the state dictionary of the current model
+    model_state_dict = model.state_dict()
+    
+    # Filter out unnecessary keys from the checkpoint
+    matched_state_dict = {k: v for k, v in checkpoint_state_dict.items() if k in model_state_dict}
+    
+    # Update the model's state dictionary with matched parameters
+    model_state_dict.update(matched_state_dict)
+    
+    # Load the updated state dictionary into the model
+    model.load_state_dict(model_state_dict)
+    
+    return model
 
 # Decay Batchnorm momentum from 0.5 to 0.999
 # note: pytorch's BN momentum (default 0.1)= 1 - tensorflow's BN momentum

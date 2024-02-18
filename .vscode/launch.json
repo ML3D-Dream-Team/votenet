@@ -4,15 +4,22 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
-            "name": "Python: Current File",
+            "name": "Train Proposal",
             "type": "python",
             "request": "launch",
-            "program": "demo.py",
+            "program": "train_proposal_module.py",
+            "args": [
+                "--dataset", "sunrgbd",
+                "--log_dir", "log_sunrgbd_test",
+                "--checkpoint_path", "log_sunrgbd_base/checkpoint.tar"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "PYTHONPATH": "/usr/bin/env/home/milad/anaconda3/envs/MilSalome/bin/python"
+                "PYTHONPATH": "/usr/bin/env/home/milad/anaconda3/envs/ml3d/bin/python",
+                "CUDA_VISIBLE_DEVICES": "0"
                 // Add other environment variables as needed
             },
         }

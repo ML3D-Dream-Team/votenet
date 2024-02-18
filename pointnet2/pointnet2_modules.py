@@ -264,7 +264,7 @@ class PointnetSAModuleVotes(nn.Module):
         )  # (B, mlp[-1], npoint, nsample)
         #print(f"inout shape aggrigate{new_features.shape}")
         
-        if(self.mlp_spec[1] == 128 and self.mlp_spec[2] ==128 and self.mlp_spec[3] == 128 and False):
+        if(self.mlp_spec[1] == 128 and self.mlp_spec[2] ==128 and self.mlp_spec[3] == 128):
             #print(f"grouped features shape {grouped_features.shape}; new feature {new_features.shape} ; mlp spec {self.mlp_spec}")
             self.pooling = "attention"
         if self.pooling == 'max':
@@ -331,7 +331,7 @@ class PointnetSAModuleMSGVotes(nn.Module):
                 features: torch.Tensor = None, inds: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
         r"""
         Parameters
-        ----------
+        ----------AttentionSAModule
         xyz : torch.Tensor
             (B, N, 3) tensor of the xyz coordinates of the features
         features : torch.Tensor
@@ -528,6 +528,22 @@ class AttentionSAModule(nn.Module):
         )
         self.key_length = key_props
 
+    # def forward(self, x):
+    #     if(x.shape[1] == self.key_length[0]):
+    #         restructured = x.view(8,256,16,128)
+    #         attention_weights = self.attention_weights(restructured)
+    #         test = restructured * attention_weights
+    #         new_features = test.view(8,128,256,16)
+    #         new_features = F.avg_pool2d(
+    #             new_features, kernel_size=[1, new_features.size(3)])
+    #         return new_features
+    #     else:
+    #         print(f"the shape of input of attention {x.shape}")
+    #         new_features = F.max_pool2d(
+    #             new_features, kernel_size=[1, new_features.size(3)]
+    #         )
+    #         return new_features
+        
     def forward(self, x):
         if(x.shape[1]*x.shape[2] == self.key_length[0]):
             final_dim = x.numel()//(self.key_length[0]*self.key_length[1])
@@ -542,6 +558,8 @@ class AttentionSAModule(nn.Module):
                 new_features, kernel_size=[1, new_features.size(3)]
             )
             return new_features
+        
+
 
 
 if __name__ == "__main__":
